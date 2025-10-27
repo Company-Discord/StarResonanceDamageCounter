@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "serverUrl": "http://localhost:5000",
+  "authToken": "sr_test_188543417469501449_1761534082",
+  "autoUpload": true,
+  "uploadOnBattleEnd": true,
+  "minBattleDuration": 10000
+}

@@ -35,6 +35,7 @@
         <button class="main-button" id="pauseButton" onclick="togglePause()" data-i18n="pauseStats">⏸️ 暂停统计</button>
         <button class="main-button" onclick="openHpWindow()" data-i18n="hpMonitor">❤️ 血条监控</button>
         <button class="main-button" onclick="toggleHistoryModal()" data-i18n="historyData">📜 历史数据</button>
+        <button class="main-button" onclick="uploadToDiscord()" data-i18n="uploadDiscord">📤 上传到Discord</button>
         <button class="main-button" onclick="toggleDarkMode()" data-i18n="darkMode">🌙 夜间模式</button>
         <button class="main-button" onclick="toggleSimpleMode()" data-i18n="simpleMode">📋 简洁模式</button>
         <button class="main-button" onclick="toggleControlsModal()" data-i18n="userManagement">👤 用户管理</button>
@@ -1806,6 +1807,29 @@
 
                 // 恢复暂停状态
                 isPaused = wasPaused;
+            }
+
+            // Discord upload function
+            async function uploadToDiscord() {
+                try {
+                    const response = await fetch('/api/upload-current', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    const result = await response.json();
+
+                    if (result.code === 0) {
+                        alert('✅ Battle data uploaded to Discord successfully!');
+                    } else {
+                        alert(`❌ Upload failed: ${result.error || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    alert(`❌ Upload failed: ${error.message}`);
+                }
             }
 
             function toggleDarkMode() {

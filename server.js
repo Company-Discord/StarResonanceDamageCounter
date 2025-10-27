@@ -19,6 +19,7 @@ const print = console.log;
 const app = express();
 const { exec } = require('child_process');
 const findDefaultNetworkDevice = require('./algo/netInterfaceUtil');
+const DiscordUploader = require('./src/integrations/discord_uploader');
 
 const skillConfig = require('./tables/skill_names_new.json');
 const VERSION = '3.3.1';
@@ -472,8 +473,9 @@ class UserData {
 
 // User data manager
 class UserDataManager {
-    constructor(logger) {
+    constructor(logger, discordUploader = null) {
         this.logger = logger;
+        this.discordUploader = discordUploader;
         this.users = new Map();
         this.userCache = new Map(); // User name and profession cache
         this.cacheFilePath = './users.json';
@@ -823,6 +825,30 @@ class UserDataManager {
     clearAll() {
         const usersToSave = this.users;
         const saveStartTime = this.startTime;
+        
+        // Trigger Discord upload before clearing if enabled
+        if (this.discordUploader && this.discordUploader.isEnabled()) {
+            const duration = saveStartTime ? Date.now() - saveStartTime : 0;
+            if (duration > 0 && usersToSave.size > 0) {
+                // Find main player for upload
+                let mainPlayer = null;
+                let maxDamage = 0;
+                
+                for (const [uid, user] of usersToSave.entries()) {
+                    if (user.damageStats.stats.total > maxDamage) {
+                        maxDamage = user.damageStats.stats.total;
+                        mainPlayer = user.getSummary();
+                    }
+                }
+                
+                if (mainPlayer) {
+                    this.discordUploader.uploadBattleData(mainPlayer, duration).catch(error => {
+                        this.logger.error('Discord upload failed during clear:', error);
+                    });
+                }
+            }
+        }
+        
         this.users = new Map();
         this.startTime = Date.now();
         this.lastAutoSaveTime = 0;
@@ -987,7 +1013,10 @@ async function main() {
         transports: [new winston.transports.Console()],
     });
 
-    const userDataManager = new UserDataManager(logger);
+    // Initialize Discord uploader
+    const discordUploader = new DiscordUploader(logger);
+
+    const userDataManager = new UserDataManager(logger, discordUploader);
 
     // Asynchronously initialize user data manager
     await userDataManager.initialize();
@@ -1222,6 +1251,47 @@ async function main() {
         globalSettings = { ...globalSettings, ...newSettings };
         await fsPromises.writeFile(SETTINGS_PATH, JSON.stringify(globalSettings, null, 2), 'utf8');
         res.json({ code: 0, data: globalSettings });
+    });
+
+    // Discord integration API endpoints
+    app.get('/api/discord-config', (req, res) => {
+        res.json({ code: 0, data: discordUploader.getConfig() });
+    });
+
+    app.post('/api/discord-config', (req, res) => {
+        try {
+            const newConfig = req.body;
+            discordUploader.updateConfig(newConfig);
+            res.json({ code: 0, data: discordUploader.getConfig() });
+        } catch (error) {
+            res.status(400).json({ code: 1, error: error.message });
+        }
+    });
+
+    app.post('/api/test-upload', async (req, res) => {
+        try {
+            const result = await discordUploader.testConnection();
+            if (result.success) {
+                res.json({ code: 0, message: result.message });
+            } else {
+                res.status(400).json({ code: 1, error: result.error });
+            }
+        } catch (error) {
+            res.status(500).json({ code: 1, error: error.message });
+        }
+    });
+
+    app.post('/api/upload-current', async (req, res) => {
+        try {
+            const result = await discordUploader.uploadCurrentData(userDataManager);
+            if (result.success) {
+                res.json({ code: 0, message: 'Data uploaded successfully' });
+            } else {
+                res.status(400).json({ code: 1, error: result.error });
+            }
+        } catch (error) {
+            res.status(500).json({ code: 1, error: error.message });
+        }
     });
 
     try {

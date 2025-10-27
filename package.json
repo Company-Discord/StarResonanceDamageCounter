@@ -20,6 +20,7 @@
   "license": "AGPL-3.0",
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
+    "axios": "^1.6.0",
     "cap": "^0.2.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
